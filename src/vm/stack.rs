@@ -17,7 +17,7 @@ impl Stack {
     pub fn push_bool(&mut self, val: bool) {
         self.push(MetaValue::bool(val))
     }
-    pub fn push_int(&mut self, val: i128) {
+    pub fn push_int(&mut self, val: i64) {
         self.push(MetaValue::int(val))
     }
     pub fn push_float(&mut self, val: f64) {
@@ -36,7 +36,7 @@ impl Stack {
             _ => Err(RuntimeError::TypeError("Expected bool".to_string())),
         })
     }
-    pub fn pop_int(&mut self) -> Result<i128, RuntimeError> {
+    pub fn pop_int(&mut self) -> Result<i64, RuntimeError> {
         self.pop().and_then(|v| match v {
             MetaValue {
                 value: Value::Int(v),

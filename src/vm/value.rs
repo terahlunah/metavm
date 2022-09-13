@@ -7,7 +7,7 @@ pub type List = Vec<Value>;
 #[derive(Debug, Clone)]
 pub enum Value {
     Bool(bool),
-    Int(i128),
+    Int(i64),
     Float(f64),
     //Char(char),
     //List(List),
@@ -51,7 +51,7 @@ impl MetaValue {
         Self::new(Value::Bool(val))
     }
 
-    pub fn int(val: i128) -> Self {
+    pub fn int(val: i64) -> Self {
         Self::new(Value::Int(val))
     }
 

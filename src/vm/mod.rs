@@ -1,6 +1,6 @@
 use crate::vm::instructions::Inst;
 use crate::vm::stack::Stack;
-use crate::vm::value::MetaValue;
+use crate::vm::value::{MetaValue, Value};
 use thiserror::Error;
 
 pub mod emitter;
@@ -18,6 +18,8 @@ pub enum RuntimeError {
     LocalNotInitialized,
     #[error("Local not found")]
     LocalNotFound,
+    #[error("Operation '{0}' not defined on {1}")]
+    OperationNotDefined(String, String),
 }
 
 #[derive(Debug)]
@@ -69,6 +71,24 @@ impl VM {
             match instructions[addr] {
                 Inst::Nop => {}
                 Inst::PushB(v) => self.stack.push_bool(v),
+                Inst::PushI(v) => self.stack.push_int(v),
+                Inst::PushF(v) => self.stack.push_float(v),
+                Inst::IntoInt => {
+                    let v = match self.stack.pop()?.value {
+                        Value::Bool(v) => v as i64,
+                        Value::Int(v) => v,
+                        Value::Float(v) => v as i64,
+                    };
+                    self.stack.push_int(v);
+                }
+                Inst::IntoFloat => {
+                    let v = match self.stack.pop()?.value {
+                        Value::Bool(v) => v as u8 as f64,
+                        Value::Int(v) => v as f64,
+                        Value::Float(v) => v,
+                    };
+                    self.stack.push_float(v);
+                }
                 Inst::And => {
                     let b = self.stack.pop_bool()?;
                     let a = self.stack.pop_bool()?;
@@ -88,59 +108,100 @@ impl VM {
                     let a = self.stack.pop_bool()?;
                     self.stack.push_bool(!a)
                 }
-                Inst::PushI(v) => self.stack.push_int(v),
-                Inst::IntoInt => {}
-                Inst::AddI => {
-                    let b = self.stack.pop_int()?;
-                    let a = self.stack.pop_int()?;
-                    self.stack.push_int(a + b)
+                Inst::Add => {
+                    let b = self.stack.pop()?;
+                    match b.value {
+                        Value::Bool(b) => {
+                            return Err(RuntimeError::OperationNotDefined(
+                                "+".to_string(),
+                                "bool".to_string(),
+                            ))
+                        }
+                        Value::Int(b) => {
+                            let a = self.stack.pop_int()?;
+                            self.stack.push_int(a + b)
+                        }
+                        Value::Float(b) => {
+                            let a = self.stack.pop_float()?;
+                            self.stack.push_float(a + b)
+                        }
+                    }
                 }
-                Inst::SubI => {
-                    let b = self.stack.pop_int()?;
-                    let a = self.stack.pop_int()?;
-                    self.stack.push_int(a - b)
+                Inst::Sub => {
+                    let b = self.stack.pop()?;
+                    match b.value {
+                        Value::Bool(b) => {
+                            return Err(RuntimeError::OperationNotDefined(
+                                "-".to_string(),
+                                "bool".to_string(),
+                            ))
+                        }
+                        Value::Int(b) => {
+                            let a = self.stack.pop_int()?;
+                            self.stack.push_int(a - b)
+                        }
+                        Value::Float(b) => {
+                            let a = self.stack.pop_float()?;
+                            self.stack.push_float(a - b)
+                        }
+                    }
                 }
-                Inst::MulI => {
-                    let b = self.stack.pop_int()?;
-                    let a = self.stack.pop_int()?;
-                    self.stack.push_int(a * b)
+                Inst::Mul => {
+                    let b = self.stack.pop()?;
+                    match b.value {
+                        Value::Bool(b) => {
+                            return Err(RuntimeError::OperationNotDefined(
+                                "*".to_string(),
+                                "bool".to_string(),
+                            ))
+                        }
+                        Value::Int(b) => {
+                            let a = self.stack.pop_int()?;
+                            self.stack.push_int(a * b)
+                        }
+                        Value::Float(b) => {
+                            let a = self.stack.pop_float()?;
+                            self.stack.push_float(a * b)
+                        }
+                    }
                 }
-                Inst::DivI => {
-                    let b = self.stack.pop_int()?;
-                    let a = self.stack.pop_int()?;
-                    self.stack.push_int(a / b)
+                Inst::Div => {
+                    let b = self.stack.pop()?;
+                    match b.value {
+                        Value::Bool(b) => {
+                            return Err(RuntimeError::OperationNotDefined(
+                                "/".to_string(),
+                                "bool".to_string(),
+                            ))
+                        }
+                        Value::Int(b) => {
+                            let a = self.stack.pop_int()?;
+                            self.stack.push_int(a / b)
+                        }
+                        Value::Float(b) => {
+                            let a = self.stack.pop_float()?;
+                            self.stack.push_float(a / b)
+                        }
+                    }
                 }
-                Inst::ModI => {
-                    let b = self.stack.pop_int()?;
-                    let a = self.stack.pop_int()?;
-                    self.stack.push_int(a % b)
-                }
-                Inst::PushF(v) => self.stack.push_float(v),
-                Inst::IntoFloat => {}
-                Inst::AddF => {
-                    let b = self.stack.pop_float()?;
-                    let a = self.stack.pop_float()?;
-                    self.stack.push_float(a + b)
-                }
-                Inst::SubF => {
-                    let b = self.stack.pop_float()?;
-                    let a = self.stack.pop_float()?;
-                    self.stack.push_float(a - b)
-                }
-                Inst::MulF => {
-                    let b = self.stack.pop_float()?;
-                    let a = self.stack.pop_float()?;
-                    self.stack.push_float(a * b)
-                }
-                Inst::DivF => {
-                    let b = self.stack.pop_float()?;
-                    let a = self.stack.pop_float()?;
-                    self.stack.push_float(a / b)
-                }
-                Inst::ModF => {
-                    let b = self.stack.pop_float()?;
-                    let a = self.stack.pop_float()?;
-                    self.stack.push_float(a % b)
+                Inst::Mod => {
+                    let b = self.stack.pop()?;
+                    match b.value {
+                        Value::Bool(b) => {
+                            return Err(RuntimeError::OperationNotDefined(
+                                "+".to_string(),
+                                "bool".to_string(),
+                            ))
+                        }
+                        Value::Int(b) => {
+                            let a = self.stack.pop_int()?;
+                            self.stack.push_int(a % b)
+                        }
+                        Value::Float(b) => {
+                            let a = self.stack.pop_float()?;
+                            self.stack.push_float(a % b)
+                        }
+                    }
                 }
                 Inst::Equal => {
                     let b = self.stack.pop()?;
@@ -172,20 +233,20 @@ impl VM {
                     let a = self.stack.pop_int()?;
                     self.stack.push_bool(a >= b)
                 }
-                Inst::Jump(idx) => pc = idx,
-                Inst::Branch(idx) => {
+                Inst::Branch(idx) => pc = idx,
+                Inst::BranchIf(idx) => {
                     let v = self.stack.pop_bool()?;
                     if v {
                         pc = idx;
                     }
                 }
                 Inst::Call(_) => {}
-                Inst::Reserve(count) => self.locals = vec![None; count],
-                Inst::Load(idx) => {
+                Inst::LocalReserve(count) => self.locals = vec![None; count],
+                Inst::LocalLoad(idx) => {
                     let l = self.get_local(idx)?;
                     self.stack.push(l);
                 }
-                Inst::Store(idx) => {
+                Inst::LocalStore(idx) => {
                     let l = self.stack.pop()?;
                     self.set_local(idx, l);
                 }
@@ -203,6 +264,19 @@ impl VM {
                     self.stack.push(a);
                     self.stack.push(b);
                 }
+                Inst::PushList => {}
+                Inst::PushTable => {}
+                Inst::ListPush => {}
+                Inst::ListPop => {}
+                Inst::ListGet => {}
+                Inst::ListSet => {}
+                Inst::TablePush => {}
+                Inst::TablePop => {}
+                Inst::TableGet => {}
+                Inst::TableSet => {}
+                Inst::LoadMeta => {}
+                Inst::StoreMeta => {}
+                Inst::Return => {}
             }
         }
         Ok(())

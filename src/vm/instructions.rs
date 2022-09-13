@@ -1,28 +1,46 @@
 #[derive(Debug)]
 pub enum Inst {
     Nop,
-    // Bool
+    // Stack
+    Dup,
+    Drop,
+    Swap,
+    // Primitives
     PushB(bool),
+    PushI(i64),
+    PushF(f64),
+    IntoInt,
+    IntoFloat,
+    PushList,
+    PushTable,
+    // List
+    ListPush,
+    ListPop,
+    ListGet,
+    ListSet,
+    // List
+    TablePush,
+    TablePop,
+    TableGet,
+    TableSet,
+    // Meta
+    LoadMeta,
+    StoreMeta,
+    // Locals
+    LocalReserve(usize),
+    LocalLoad(usize),
+    LocalStore(usize),
+    // Boolean Operations
     And,
     Or,
     Xor,
     Not,
-    // Int
-    PushI(i128),
-    IntoInt,
-    AddI,
-    SubI,
-    MulI,
-    DivI,
-    ModI,
-    // Float
-    PushF(f64),
-    IntoFloat,
-    AddF,
-    SubF,
-    MulF,
-    DivF,
-    ModF,
+    // Arithmetic Operations
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
     // Logic and Control Flow
     Equal,
     NotEqual,
@@ -30,15 +48,10 @@ pub enum Inst {
     GreaterThan,
     LessEqual,
     GreaterEqual,
-    Jump(usize),
+    // TODO, make them relative
     Branch(usize),
+    BranchIf(usize),
     Call(String),
-    // Locals
-    Reserve(usize),
-    Load(usize),
-    Store(usize),
-    // Stack
-    Dup,
-    Drop,
-    Swap,
+    Return,
+    // TableCall - Indirect
 }
