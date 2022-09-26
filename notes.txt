@@ -1,0 +1,3 @@
+Todo
+
+- wrap metavalues in Rc, and get_mut (same as Cow)

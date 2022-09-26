@@ -1,5 +1,7 @@
-use crate::vm::value::{MetaValue, Value};
-use crate::vm::RuntimeError;
+use crate::vm::{
+    value::{List, MetaValue, Table, Value},
+    RuntimeError,
+};
 
 #[derive(Debug)]
 pub struct Stack {
@@ -22,6 +24,12 @@ impl Stack {
     }
     pub fn push_float(&mut self, val: f64) {
         self.push(MetaValue::float(val))
+    }
+    pub fn push_list(&mut self, val: List) {
+        self.push(MetaValue::list(val))
+    }
+    pub fn push_table(&mut self, val: Table) {
+        self.push(MetaValue::table(val))
     }
 
     pub fn pop(&mut self) -> Result<MetaValue, RuntimeError> {
@@ -52,6 +60,24 @@ impl Stack {
                 ..
             } => Ok(v),
             _ => Err(RuntimeError::TypeError("Expected float".to_string())),
+        })
+    }
+    pub fn pop_list(&mut self) -> Result<List, RuntimeError> {
+        self.pop().and_then(|v| match v {
+            MetaValue {
+                value: Value::List(v),
+                ..
+            } => Ok(v),
+            _ => Err(RuntimeError::TypeError("Expected list".to_string())),
+        })
+    }
+    pub fn pop_table(&mut self) -> Result<Table, RuntimeError> {
+        self.pop().and_then(|v| match v {
+            MetaValue {
+                value: Value::Table(v),
+                ..
+            } => Ok(v),
+            _ => Err(RuntimeError::TypeError("Expected table".to_string())),
         })
     }
 }

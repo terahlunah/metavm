@@ -1,8 +1,8 @@
 use eq_float::F64;
 use std::collections::HashMap;
 
-pub type Table = HashMap<String, Value>;
-pub type List = Vec<Value>;
+pub type Table = HashMap<String, MetaValue>;
+pub type List = Vec<MetaValue>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -10,8 +10,8 @@ pub enum Value {
     Int(i64),
     Float(f64),
     //Char(char),
-    //List(List),
-    //Table(Table)
+    List(List),
+    Table(Table),
 }
 
 impl PartialEq<Self> for Value {
@@ -47,6 +47,16 @@ impl MetaValue {
         }
     }
 
+    pub fn type_name(&self) -> String {
+        match self.value {
+            Value::Bool(_) => String::from("Bool"),
+            Value::Int(_) => String::from("Int"),
+            Value::Float(_) => String::from("Float"),
+            Value::List(_) => String::from("List"),
+            Value::Table(_) => String::from("Table"),
+        }
+    }
+
     pub fn bool(val: bool) -> Self {
         Self::new(Value::Bool(val))
     }
@@ -57,6 +67,14 @@ impl MetaValue {
 
     pub fn float(val: f64) -> Self {
         Self::new(Value::Float(val))
+    }
+
+    pub fn list(val: List) -> Self {
+        Self::new(Value::List(val))
+    }
+
+    pub fn table(val: Table) -> Self {
+        Self::new(Value::Table(val))
     }
 
     pub fn is_bool(&self) -> bool {

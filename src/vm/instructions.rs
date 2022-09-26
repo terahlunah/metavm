@@ -18,11 +18,13 @@ pub enum Inst {
     ListPop,
     ListGet,
     ListSet,
+    ListLen,
     // List
     TablePush,
     TablePop,
     TableGet,
     TableSet,
+    TableLen,
     // Meta
     LoadMeta,
     StoreMeta,
