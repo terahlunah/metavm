@@ -1,11 +1,26 @@
 use crate::vm::{
-    value::{List, MetaValue, Table, Value},
+    value::{FunctionRef, List, MetaValue, Table, Value},
     RuntimeError,
 };
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub struct Stack {
     stack: Vec<MetaValue>,
+}
+
+impl Display for Stack {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.stack
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+                .join(",")
+        )
+    }
 }
 
 impl Stack {
@@ -31,6 +46,9 @@ impl Stack {
     pub fn push_table(&mut self, val: Table) {
         self.push(MetaValue::table(val))
     }
+    pub fn push_function_ref(&mut self, val: FunctionRef) {
+        self.push(MetaValue::function_ref(val))
+    }
 
     pub fn pop(&mut self) -> Result<MetaValue, RuntimeError> {
         self.stack.pop().ok_or(RuntimeError::EmptyStack)
@@ -41,7 +59,7 @@ impl Stack {
                 value: Value::Bool(v),
                 ..
             } => Ok(v),
-            _ => Err(RuntimeError::TypeError("Expected bool".to_string())),
+            _ => Err(RuntimeError::TypeError(v.type_name())),
         })
     }
     pub fn pop_int(&mut self) -> Result<i64, RuntimeError> {
@@ -50,7 +68,7 @@ impl Stack {
                 value: Value::Int(v),
                 ..
             } => Ok(v),
-            _ => Err(RuntimeError::TypeError("Expected int".to_string())),
+            _ => Err(RuntimeError::TypeError(v.type_name())),
         })
     }
     pub fn pop_float(&mut self) -> Result<f64, RuntimeError> {
@@ -59,7 +77,7 @@ impl Stack {
                 value: Value::Float(v),
                 ..
             } => Ok(v),
-            _ => Err(RuntimeError::TypeError("Expected float".to_string())),
+            _ => Err(RuntimeError::TypeError(v.type_name())),
         })
     }
     pub fn pop_list(&mut self) -> Result<List, RuntimeError> {
@@ -68,7 +86,7 @@ impl Stack {
                 value: Value::List(v),
                 ..
             } => Ok(v),
-            _ => Err(RuntimeError::TypeError("Expected list".to_string())),
+            _ => Err(RuntimeError::TypeError(v.type_name())),
         })
     }
     pub fn pop_table(&mut self) -> Result<Table, RuntimeError> {
@@ -77,7 +95,16 @@ impl Stack {
                 value: Value::Table(v),
                 ..
             } => Ok(v),
-            _ => Err(RuntimeError::TypeError("Expected table".to_string())),
+            _ => Err(RuntimeError::TypeError(v.type_name())),
+        })
+    }
+    pub fn pop_function_ref(&mut self) -> Result<FunctionRef, RuntimeError> {
+        self.pop().and_then(|v| match v {
+            MetaValue {
+                value: Value::FunctionRef(v),
+                ..
+            } => Ok(v),
+            _ => Err(RuntimeError::TypeError(v.type_name())),
         })
     }
 }

@@ -1,50 +1,76 @@
-use mana::vm::{emitter::Emitter, instructions::Inst, value, value::MetaValue, VM};
+use mana::vm::{
+    emitter::Emitter,
+    env::Env,
+    function::Functions,
+    instructions::Inst,
+    value,
+    value::{FunctionRef, MetaValue},
+    VM,
+};
 
 fn main() {
-    let mut emitter = Emitter::new();
+    let inc = {
+        let mut e = Emitter::new();
+        e.push_int(1).add();
+        e.finish()
+    };
+    let list_inc = {
+        let mut e = Emitter::new();
+        e.push_function_ref("inc")
+            .push_function_ref("List.map")
+            .call();
 
-    // List.sum
-    emitter.emit(Inst::LocalReserve(3));
-    emitter.emit(Inst::ListLen);
-    emitter.emit(Inst::Dup);
-    emitter.emit(Inst::LocalStore(0)); // Len
-    emitter.emit(Inst::PushI(0));
-    emitter.emit(Inst::LocalStore(1)); // Index
-    emitter.emit(Inst::PushI(0));
-    emitter.emit(Inst::LocalStore(2)); // Total
+        e.finish()
+    };
 
-    let loop_start = emitter.emit(Inst::Nop);
+    let list_map = {
+        let mut e = Emitter::new();
 
-    emitter.emit(Inst::LocalLoad(1)); // Load Index
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::Sub);
-    emitter.emit(Inst::LocalStore(1));
-    let loop_check = emitter.emit(Inst::LocalLoad(1));
-    emitter.emit(Inst::LocalLoad(0));
-    emitter.emit(Inst::LessThan);
-    emitter.emit(Inst::BranchIf(loop_start));
+        let f = e.local_new();
+        let l = e.local_new();
+        let length = e.local_new();
+        let i = e.local_new();
 
-    // Factorial
-    emitter.emit(Inst::LocalReserve(1));
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::LocalStore(0)); // total
-    let loop_start = emitter.emit(Inst::Dup);
-    emitter.emit(Inst::LocalLoad(0));
-    emitter.emit(Inst::Mul);
-    emitter.emit(Inst::LocalStore(0));
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::Sub);
-    emitter.emit(Inst::Dup);
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::GreaterThan);
-    emitter.emit(Inst::BranchIf(loop_start));
-    emitter.emit(Inst::Drop);
-    emitter.emit(Inst::LocalLoad(0));
-    let instructions = emitter.finish();
-    let mut vm = VM::new();
+        // Init
+        e.local_store(f)
+            .dup()
+            .local_store(l)
+            .list_len()
+            .local_store(length)
+            .push_int(0)
+            .local_store(i);
 
-    vm.push(MetaValue::int(5));
-    vm.execute(instructions);
+        // Loop
+        e.while_loop(
+            |e| {
+                e.local_load(i).local_load(length).less_than();
+            },
+            |e| {
+                e.local_load(l).local_load(i).list_get();
+                e.local_load(f).call();
+                e.local_load(l)
+                    .swap()
+                    .local_load(i)
+                    .swap()
+                    .list_set()
+                    .local_store(l);
+                e.local_load(i).push_int(1).add().local_store(i);
+            },
+        )
+        .local_load(l);
+
+        e.finish()
+    };
+
+    let mut functions = Functions::new();
+    functions.insert("inc".into(), inc);
+    functions.insert("List.map".into(), list_map);
+    functions.insert("List.inc".into(), list_inc);
+
+    let mut vm = VM::new(functions);
+
+    vm.push(MetaValue::list(vec![5.into(), 6.into()]));
+    vm.run("List.inc");
 
     println!("Result: {:?}", vm.pop())
 }

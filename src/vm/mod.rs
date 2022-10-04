@@ -1,4 +1,6 @@
 use crate::vm::{
+    env::Env,
+    function::{Function, Functions},
     instructions::Inst,
     stack::Stack,
     value::{List, MetaValue, Table, Value},
@@ -6,6 +8,8 @@ use crate::vm::{
 use thiserror::Error;
 
 pub mod emitter;
+pub mod env;
+pub mod function;
 pub mod instructions;
 pub mod stack;
 pub mod value;
@@ -18,7 +22,7 @@ pub enum RuntimeError {
     EmptyList,
     #[error("the table is empty")]
     EmptyTable,
-    #[error("{0}")]
+    #[error("Expected {0}")]
     TypeError(String),
     #[error("Local not initialized")]
     LocalNotInitialized,
@@ -28,34 +32,21 @@ pub enum RuntimeError {
     OperationNotDefined(String, String),
     #[error("Index out of range, got {0} but range is [{1}, {2}]")]
     RangeError(i64, i64, i64),
+    #[error("Function not found: {0}")]
+    FunctionNotFound(String),
 }
 
 #[derive(Debug)]
 pub struct VM {
     stack: Stack,
-    locals: Vec<Option<MetaValue>>,
+    functions: Functions,
 }
 
 impl VM {
-    pub fn new() -> Self {
+    pub fn new(functions: Functions) -> Self {
         Self {
             stack: Stack::new(),
-            locals: Vec::new(),
-        }
-    }
-
-    pub fn get_local(&mut self, idx: usize) -> Result<MetaValue, RuntimeError> {
-        match self.locals.get(idx) {
-            Some(Some(v)) => Ok(v.clone()),
-            Some(None) => Err(RuntimeError::LocalNotInitialized),
-            None => Err(RuntimeError::LocalNotFound),
-        }
-    }
-
-    pub fn set_local(&mut self, idx: usize, val: MetaValue) -> Result<(), RuntimeError> {
-        match self.locals.get_mut(idx) {
-            Some(v) => Ok(*v = Some(val)),
-            None => Err(RuntimeError::LocalNotFound),
+            functions,
         }
     }
 
@@ -67,37 +58,59 @@ impl VM {
         self.stack.pop()
     }
 
-    pub fn execute(&mut self, instructions: Vec<Inst>) -> Result<(), RuntimeError> {
+    pub fn run(&mut self, function: impl Into<String>) -> Result<(), RuntimeError> {
+        let function = self.get_function(function.into())?;
+        self.execute(function, Env::default())
+    }
+
+    fn get_function(&self, name: String) -> Result<Function, RuntimeError> {
+        self.functions
+            .get(&name)
+            .ok_or(RuntimeError::FunctionNotFound(name))
+            .cloned()
+    }
+
+    fn execute(&mut self, function: Function, mut env: Env) -> Result<(), RuntimeError> {
+        let instructions = function.instructions;
         let mut pc = 0;
+        env.reserve(function.locals);
 
         while pc < instructions.len() {
-            println!("VM: {:?}", self);
             let addr = pc;
             pc += 1;
 
+            println!("-------------");
             println!("PC: {:?}", instructions[addr]);
-            match instructions[addr] {
+            match instructions[addr].clone() {
                 Inst::Nop => {}
                 Inst::PushB(v) => self.stack.push_bool(v),
                 Inst::PushI(v) => self.stack.push_int(v),
                 Inst::PushF(v) => self.stack.push_float(v),
                 Inst::IntoInt => {
-                    let v = match self.stack.pop()?.value {
+                    let mv = self.stack.pop()?;
+                    let v = match mv.value {
                         Value::Bool(v) => v as i64,
                         Value::Int(v) => v,
                         Value::Float(v) => v as i64,
                         Value::List(v) => v.len() as i64,
                         Value::Table(v) => v.len() as i64,
+                        Value::FunctionRef(_) => {
+                            return operation_not_defined("into_int", mv.type_name())
+                        }
                     };
                     self.stack.push_int(v);
                 }
                 Inst::IntoFloat => {
-                    let v = match self.stack.pop()?.value {
+                    let mv = self.stack.pop()?;
+                    let v = match mv.value {
                         Value::Bool(v) => v as u8 as f64,
                         Value::Int(v) => v as f64,
                         Value::Float(v) => v,
                         Value::List(v) => v.len() as f64,
                         Value::Table(v) => v.len() as f64,
+                        Value::FunctionRef(_) => {
+                            return operation_not_defined("into_float", mv.type_name())
+                        }
                     };
                     self.stack.push_float(v);
                 }
@@ -123,11 +136,11 @@ impl VM {
                 Inst::Add => {
                     let b = self.stack.pop()?;
                     match b.value {
-                        Value::Bool(_) | Value::List(_) | Value::Table(_) => {
-                            return Err(RuntimeError::OperationNotDefined(
-                                "+".to_string(),
-                                b.type_name(),
-                            ))
+                        Value::Bool(_)
+                        | Value::List(_)
+                        | Value::Table(_)
+                        | Value::FunctionRef(_) => {
+                            return operation_not_defined("+", b.type_name());
                         }
                         Value::Int(b) => {
                             let a = self.stack.pop_int()?;
@@ -142,11 +155,11 @@ impl VM {
                 Inst::Sub => {
                     let b = self.stack.pop()?;
                     match b.value {
-                        Value::Bool(_) | Value::List(_) | Value::Table(_) => {
-                            return Err(RuntimeError::OperationNotDefined(
-                                "-".to_string(),
-                                b.type_name(),
-                            ))
+                        Value::Bool(_)
+                        | Value::List(_)
+                        | Value::Table(_)
+                        | Value::FunctionRef(_) => {
+                            return operation_not_defined("-", b.type_name());
                         }
                         Value::Int(b) => {
                             let a = self.stack.pop_int()?;
@@ -161,11 +174,11 @@ impl VM {
                 Inst::Mul => {
                     let b = self.stack.pop()?;
                     match b.value {
-                        Value::Bool(_) | Value::List(_) | Value::Table(_) => {
-                            return Err(RuntimeError::OperationNotDefined(
-                                "*".to_string(),
-                                b.type_name(),
-                            ))
+                        Value::Bool(_)
+                        | Value::List(_)
+                        | Value::Table(_)
+                        | Value::FunctionRef(_) => {
+                            return operation_not_defined("*", b.type_name());
                         }
                         Value::Int(b) => {
                             let a = self.stack.pop_int()?;
@@ -180,11 +193,11 @@ impl VM {
                 Inst::Div => {
                     let b = self.stack.pop()?;
                     match b.value {
-                        Value::Bool(_) | Value::List(_) | Value::Table(_) => {
-                            return Err(RuntimeError::OperationNotDefined(
-                                "/".to_string(),
-                                b.type_name(),
-                            ))
+                        Value::Bool(_)
+                        | Value::List(_)
+                        | Value::Table(_)
+                        | Value::FunctionRef(_) => {
+                            return operation_not_defined("/", b.type_name());
                         }
                         Value::Int(b) => {
                             let a = self.stack.pop_int()?;
@@ -199,11 +212,11 @@ impl VM {
                 Inst::Mod => {
                     let b = self.stack.pop()?;
                     match b.value {
-                        Value::Bool(_) | Value::List(_) | Value::Table(_) => {
-                            return Err(RuntimeError::OperationNotDefined(
-                                "+".to_string(),
-                                b.type_name(),
-                            ))
+                        Value::Bool(_)
+                        | Value::List(_)
+                        | Value::Table(_)
+                        | Value::FunctionRef(_) => {
+                            return operation_not_defined("mod", b.type_name());
                         }
                         Value::Int(b) => {
                             let a = self.stack.pop_int()?;
@@ -252,15 +265,28 @@ impl VM {
                         pc = idx;
                     }
                 }
-                Inst::Call(_) => {}
-                Inst::LocalReserve(count) => self.locals = vec![None; count],
+                Inst::BranchIfNot(idx) => {
+                    let v = self.stack.pop_bool()?;
+                    if !v {
+                        pc = idx;
+                    }
+                }
+                Inst::Call => {
+                    let v = self.stack.pop_function_ref()?;
+                    let function = self.get_function(v.name)?;
+                    let env = v.env;
+                    self.execute(function, env)?;
+                    println!("-------------");
+                }
+
+                Inst::PushFn(v) => self.stack.push_function_ref(v.into()),
                 Inst::LocalLoad(idx) => {
-                    let l = self.get_local(idx)?;
+                    let l = env.get_local(idx)?;
                     self.stack.push(l);
                 }
                 Inst::LocalStore(idx) => {
                     let l = self.stack.pop()?;
-                    self.set_local(idx, l);
+                    env.set_local(idx, l)?;
                 }
                 Inst::Dup => {
                     let v = self.stack.pop()?;
@@ -337,7 +363,19 @@ impl VM {
                 }
                 Inst::Return => {}
             }
+            println!("Stack: {}", self.stack);
+            println!("Env: {}", env);
         }
         Ok(())
     }
+}
+
+fn operation_not_defined(
+    op_name: impl Into<String>,
+    type_name: impl Into<String>,
+) -> Result<(), RuntimeError> {
+    Err(RuntimeError::OperationNotDefined(
+        op_name.into(),
+        type_name.into(),
+    ))
 }

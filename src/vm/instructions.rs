@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use crate::vm::value::FunctionRef;
+
+#[derive(Debug, Clone)]
 pub enum Inst {
     Nop,
     // Stack
@@ -9,10 +11,11 @@ pub enum Inst {
     PushB(bool),
     PushI(i64),
     PushF(f64),
-    IntoInt,
-    IntoFloat,
     PushList,
     PushTable,
+    PushFn(String),
+    IntoInt,
+    IntoFloat,
     // List
     ListPush,
     ListPop,
@@ -29,7 +32,6 @@ pub enum Inst {
     LoadMeta,
     StoreMeta,
     // Locals
-    LocalReserve(usize),
     LocalLoad(usize),
     LocalStore(usize),
     // Boolean Operations
@@ -53,7 +55,8 @@ pub enum Inst {
     // TODO, make them relative
     Branch(usize),
     BranchIf(usize),
-    Call(String),
+    BranchIfNot(usize),
+    Call,
     Return,
     // TableCall - Indirect
 }
