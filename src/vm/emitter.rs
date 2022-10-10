@@ -2,6 +2,7 @@ use crate::vm::{function::Function, instructions::Inst};
 
 pub struct Emitter {
     instructions: Vec<Inst>,
+    env_locals: usize,
     locals: usize,
     breaks_if: Vec<usize>,
     breaks_if_not: Vec<usize>,
@@ -11,6 +12,17 @@ impl Emitter {
     pub fn new() -> Self {
         Self {
             instructions: vec![],
+            env_locals: 0,
+            locals: 0,
+            breaks_if: vec![],
+            breaks_if_not: vec![],
+        }
+    }
+
+    pub fn with_env(env_locals: usize) -> Self {
+        Self {
+            instructions: vec![],
+            env_locals,
             locals: 0,
             breaks_if: vec![],
             breaks_if_not: vec![],
@@ -54,6 +66,16 @@ impl Emitter {
         self
     }
 
+    pub fn push_floatt(&mut self, v: f64) -> &mut Self {
+        self.instructions.push(Inst::PushF(v));
+        self
+    }
+
+    pub fn push_list(&mut self) -> &mut Self {
+        self.instructions.push(Inst::PushList);
+        self
+    }
+
     pub fn push_function_ref(&mut self, name: impl Into<String>) -> &mut Self {
         self.instructions.push(Inst::PushFn(name.into()));
         self
@@ -84,14 +106,29 @@ impl Emitter {
         self
     }
 
+    pub fn list_push(&mut self) -> &mut Self {
+        self.instructions.push(Inst::ListPush);
+        self
+    }
+
+    pub fn list_pop(&mut self) -> &mut Self {
+        self.instructions.push(Inst::ListPop);
+        self
+    }
+
     pub fn call(&mut self) -> &mut Self {
         self.emit(Inst::Call);
         self
     }
 
+    pub fn bind(&mut self) -> &mut Self {
+        self.emit(Inst::Bind);
+        self
+    }
+
     // Todo: reuse freed local idx
     pub fn local_new(&mut self) -> usize {
-        let id = self.locals;
+        let id = self.locals + self.env_locals;
         self.locals += 1;
         id
     }

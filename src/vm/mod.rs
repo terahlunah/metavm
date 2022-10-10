@@ -278,7 +278,12 @@ impl VM {
                     self.execute(function, env)?;
                     println!("-------------");
                 }
-
+                Inst::Bind => {
+                    let env = self.stack.pop_list()?;
+                    let mut f = self.stack.pop_function_ref()?;
+                    f.env = Env::new(env.into_iter().map(Some).collect());
+                    self.stack.push_function_ref(f);
+                }
                 Inst::PushFn(v) => self.stack.push_function_ref(v.into()),
                 Inst::LocalLoad(idx) => {
                     let l = env.get_local(idx)?;

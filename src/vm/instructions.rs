@@ -56,7 +56,9 @@ pub enum Inst {
     Branch(usize),
     BranchIf(usize),
     BranchIfNot(usize),
+    // Functions
     Call,
+    Bind,
     Return,
     // TableCall - Indirect
 }

@@ -9,68 +9,40 @@ use mana::vm::{
 };
 
 fn main() {
-    let inc = {
-        let mut e = Emitter::new();
-        e.push_int(1).add();
+    let add_n_closure = {
+        let mut e = Emitter::with_env(1);
+        e.local_load(0).add();
         e.finish()
     };
-    let list_inc = {
+    let add_n = {
         let mut e = Emitter::new();
-        e.push_function_ref("inc")
-            .push_function_ref("List.map")
+        e.push_list()
+            .swap()
+            .list_push()
+            .push_function_ref("add_n_closure")
+            .swap()
+            .bind();
+        e.finish()
+    };
+    let main_fn = {
+        let mut e = Emitter::new();
+        e.push_int(1)
+            .push_int(2)
+            .push_function_ref("add_n")
+            .call()
             .call();
 
         e.finish()
     };
 
-    let list_map = {
-        let mut e = Emitter::new();
-
-        let f = e.local_new();
-        let l = e.local_new();
-        let length = e.local_new();
-        let i = e.local_new();
-
-        // Init
-        e.local_store(f)
-            .dup()
-            .local_store(l)
-            .list_len()
-            .local_store(length)
-            .push_int(0)
-            .local_store(i);
-
-        // Loop
-        e.while_loop(
-            |e| {
-                e.local_load(i).local_load(length).less_than();
-            },
-            |e| {
-                e.local_load(l).local_load(i).list_get();
-                e.local_load(f).call();
-                e.local_load(l)
-                    .swap()
-                    .local_load(i)
-                    .swap()
-                    .list_set()
-                    .local_store(l);
-                e.local_load(i).push_int(1).add().local_store(i);
-            },
-        )
-        .local_load(l);
-
-        e.finish()
-    };
-
     let mut functions = Functions::new();
-    functions.insert("inc".into(), inc);
-    functions.insert("List.map".into(), list_map);
-    functions.insert("List.inc".into(), list_inc);
+    functions.insert("add_n_closure".into(), add_n_closure);
+    functions.insert("add_n".into(), add_n);
+    functions.insert("main".into(), main_fn);
 
     let mut vm = VM::new(functions);
 
-    vm.push(MetaValue::list(vec![5.into(), 6.into()]));
-    vm.run("List.inc");
+    vm.run("main");
 
     println!("Result: {:?}", vm.pop())
 }

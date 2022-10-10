@@ -24,6 +24,10 @@ impl Display for Env {
 }
 
 impl Env {
+    pub fn new(locals: Vec<Option<MetaValue>>) -> Self {
+        Self { locals }
+    }
+
     pub fn reserve(&mut self, count: usize) {
         self.locals.append(&mut vec![None; count])
     }
