@@ -1,14 +1,15 @@
 use crate::vm::env::Env;
 use eq_float::F64;
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::{write, Display, Formatter},
+    hash::Hash,
 };
 
-pub type Table = HashMap<String, MetaValue>;
+pub type Table = BTreeMap<MetaValue, MetaValue>;
 pub type List = Vec<MetaValue>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct FunctionRef {
     pub name: String,
     pub env: Env,
@@ -26,11 +27,11 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum Value {
     Bool(bool),
     Int(i64),
-    Float(f64),
+    Float(F64),
     //Char(char),
     List(List),
     Table(Table),
@@ -53,32 +54,22 @@ impl Display for Value {
                         .join(",")
                 )
             }
-            Value::Table(v) => write!(f, "{}", "Table"),
+            Value::Table(v) => {
+                write!(
+                    f,
+                    "[{}]",
+                    v.iter()
+                        .map(|(k, v)| format!("{}:{}", k, v.to_string()))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                )
+            }
             Value::FunctionRef(v) => write!(f, "{}", v.name),
         }
     }
 }
 
-impl PartialEq<Self> for Value {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => {
-                if a.is_nan() && b.is_nan() {
-                    true
-                } else {
-                    a == b
-                }
-            }
-            _ => false,
-        }
-    }
-}
-
-impl Eq for Value {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct MetaValue {
     pub value: Value,
     pub meta: Table,
@@ -118,7 +109,7 @@ impl MetaValue {
     }
 
     pub fn float(val: f64) -> Self {
-        Self::new(Value::Float(val))
+        Self::new(Value::Float(F64(val)))
     }
 
     pub fn list(val: List) -> Self {

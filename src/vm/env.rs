@@ -1,7 +1,10 @@
 use crate::vm::{value::MetaValue, RuntimeError};
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    hash::Hash,
+};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Env {
     locals: Vec<Option<MetaValue>>,
 }
@@ -16,7 +19,7 @@ impl Display for Env {
                 .map(|it| it
                     .as_ref()
                     .map(ToString::to_string)
-                    .unwrap_or("_".to_string()))
+                    .unwrap_or_else(|| "_".to_string()))
                 .collect::<Vec<String>>()
                 .join(",")
         )
@@ -42,7 +45,10 @@ impl Env {
 
     pub fn set_local(&mut self, idx: usize, val: MetaValue) -> Result<(), RuntimeError> {
         match self.locals.get_mut(idx) {
-            Some(v) => Ok(*v = Some(val)),
+            Some(v) => {
+                *v = Some(val);
+                Ok(())
+            }
             None => Err(RuntimeError::LocalNotFound),
         }
     }

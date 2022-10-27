@@ -1,3 +1,5 @@
 Todo
 
 - wrap metavalues in Rc, and get_mut (same as Cow)
+- add native modules
+- Add support for Option, Result, Seq

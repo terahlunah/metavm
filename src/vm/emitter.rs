@@ -86,6 +86,16 @@ impl Emitter {
         self
     }
 
+    pub fn sub(&mut self) -> &mut Self {
+        self.emit(Inst::Sub);
+        self
+    }
+
+    pub fn mul(&mut self) -> &mut Self {
+        self.emit(Inst::Mul);
+        self
+    }
+
     pub fn not(&mut self) -> &mut Self {
         self.emit(Inst::Not);
         self
@@ -145,6 +155,11 @@ impl Emitter {
 
     pub fn less_than(&mut self) -> &mut Self {
         self.emit(Inst::LessThan);
+        self
+    }
+
+    pub fn greater_than(&mut self) -> &mut Self {
+        self.emit(Inst::GreaterThan);
         self
     }
 

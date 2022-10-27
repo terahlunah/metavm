@@ -22,11 +22,10 @@ pub enum Inst {
     ListGet,
     ListSet,
     ListLen,
-    // List
-    TablePush,
-    TablePop,
+    // Table
     TableGet,
     TableSet,
+    TableKeys,
     TableLen,
     // Meta
     LoadMeta,

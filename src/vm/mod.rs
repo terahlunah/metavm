@@ -14,7 +14,7 @@ pub mod instructions;
 pub mod stack;
 pub mod value;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Eq, PartialEq)]
 pub enum RuntimeError {
     #[error("the stack is empty")]
     EmptyStack,
@@ -32,6 +32,8 @@ pub enum RuntimeError {
     OperationNotDefined(String, String),
     #[error("Index out of range, got {0} but range is [{1}, {2}]")]
     RangeError(i64, i64, i64),
+    #[error("Key {0} not found in table")]
+    KeyNotFound(String),
     #[error("Function not found: {0}")]
     FunctionNotFound(String),
 }
@@ -40,6 +42,7 @@ pub enum RuntimeError {
 pub struct VM {
     stack: Stack,
     functions: Functions,
+    tracing: bool,
 }
 
 impl VM {
@@ -47,7 +50,12 @@ impl VM {
         Self {
             stack: Stack::new(),
             functions,
+            tracing: false,
         }
+    }
+
+    pub fn tracing(&mut self, tracing: bool) {
+        self.tracing = tracing;
     }
 
     pub fn push(&mut self, val: MetaValue) {
@@ -79,8 +87,10 @@ impl VM {
             let addr = pc;
             pc += 1;
 
-            println!("-------------");
-            println!("PC: {:?}", instructions[addr]);
+            if self.tracing {
+                println!("-------------");
+                println!("PC: {:?}", instructions[addr]);
+            }
             match instructions[addr].clone() {
                 Inst::Nop => {}
                 Inst::PushB(v) => self.stack.push_bool(v),
@@ -91,7 +101,7 @@ impl VM {
                     let v = match mv.value {
                         Value::Bool(v) => v as i64,
                         Value::Int(v) => v,
-                        Value::Float(v) => v as i64,
+                        Value::Float(v) => v.0 as i64,
                         Value::List(v) => v.len() as i64,
                         Value::Table(v) => v.len() as i64,
                         Value::FunctionRef(_) => {
@@ -105,7 +115,7 @@ impl VM {
                     let v = match mv.value {
                         Value::Bool(v) => v as u8 as f64,
                         Value::Int(v) => v as f64,
-                        Value::Float(v) => v,
+                        Value::Float(v) => v.0,
                         Value::List(v) => v.len() as f64,
                         Value::Table(v) => v.len() as f64,
                         Value::FunctionRef(_) => {
@@ -148,7 +158,7 @@ impl VM {
                         }
                         Value::Float(b) => {
                             let a = self.stack.pop_float()?;
-                            self.stack.push_float(a + b)
+                            self.stack.push_float(a + b.0)
                         }
                     }
                 }
@@ -167,7 +177,7 @@ impl VM {
                         }
                         Value::Float(b) => {
                             let a = self.stack.pop_float()?;
-                            self.stack.push_float(a - b)
+                            self.stack.push_float(a - b.0)
                         }
                     }
                 }
@@ -186,7 +196,7 @@ impl VM {
                         }
                         Value::Float(b) => {
                             let a = self.stack.pop_float()?;
-                            self.stack.push_float(a * b)
+                            self.stack.push_float(a * b.0)
                         }
                     }
                 }
@@ -205,7 +215,7 @@ impl VM {
                         }
                         Value::Float(b) => {
                             let a = self.stack.pop_float()?;
-                            self.stack.push_float(a / b)
+                            self.stack.push_float(a / b.0)
                         }
                     }
                 }
@@ -224,7 +234,7 @@ impl VM {
                         }
                         Value::Float(b) => {
                             let a = self.stack.pop_float()?;
-                            self.stack.push_float(a % b)
+                            self.stack.push_float(a % b.0)
                         }
                     }
                 }
@@ -276,7 +286,9 @@ impl VM {
                     let function = self.get_function(v.name)?;
                     let env = v.env;
                     self.execute(function, env)?;
-                    println!("-------------");
+                    if self.tracing {
+                        println!("-------------");
+                    }
                 }
                 Inst::Bind => {
                     let env = self.stack.pop_list()?;
@@ -308,7 +320,6 @@ impl VM {
                     self.stack.push(b);
                 }
                 Inst::PushList => self.stack.push_list(List::new()),
-                Inst::PushTable => self.stack.push_table(Table::new()),
                 Inst::ListPush => {
                     let v = self.stack.pop()?;
                     let mut l = self.stack.pop_list()?;
@@ -322,7 +333,7 @@ impl VM {
                 }
                 Inst::ListGet => {
                     let i = self.stack.pop_int()?;
-                    let mut l = self.stack.pop_list()?;
+                    let l = self.stack.pop_list()?;
                     if i >= 0 && i < l.len() as i64 {
                         let v = l.get(i as usize).ok_or(RuntimeError::RangeError(
                             i,
@@ -351,11 +362,32 @@ impl VM {
                     let l = self.stack.pop_list()?;
                     self.stack.push_int(l.len() as i64);
                 }
-                Inst::TablePush => {}
-                Inst::TablePop => {}
-                Inst::TableGet => {}
-                Inst::TableSet => {}
-                Inst::TableLen => {}
+                Inst::PushTable => self.stack.push_table(Table::new()),
+                Inst::TableGet => {
+                    let k = self.stack.pop()?;
+                    let t = self.stack.pop_table()?;
+                    let v = t
+                        .get(&k)
+                        .ok_or(RuntimeError::KeyNotFound(k.to_string()))?
+                        .clone();
+                    self.stack.push(v);
+                }
+                Inst::TableSet => {
+                    let v = self.stack.pop()?;
+                    let k = self.stack.pop()?;
+                    let mut t = self.stack.pop_table()?;
+                    t.insert(k, v);
+                    self.stack.push_table(t);
+                }
+                Inst::TableKeys => {
+                    let t = self.stack.pop_table()?;
+                    let keys: Vec<MetaValue> = t.keys().cloned().collect();
+                    self.stack.push_list(keys);
+                }
+                Inst::TableLen => {
+                    let t = self.stack.pop_table()?;
+                    self.stack.push_int(t.len() as i64);
+                }
                 Inst::LoadMeta => {
                     let v = self.stack.pop()?;
                     self.stack.push_table(v.meta);
@@ -368,8 +400,10 @@ impl VM {
                 }
                 Inst::Return => {}
             }
-            println!("Stack: {}", self.stack);
-            println!("Env: {}", env);
+            if self.tracing {
+                println!("Stack: {}", self.stack);
+                println!("Env: {}", env);
+            }
         }
         Ok(())
     }

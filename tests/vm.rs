@@ -1,33 +1,81 @@
-use mana::vm::{emitter::Emitter, instructions::Inst, value::MetaValue, VM};
+use mana::vm::{emitter::Emitter, function::Functions, value::MetaValue, VM};
 
 #[test]
 fn test_factorial() {
-    let mut emitter = Emitter::new();
+    let mut e = Emitter::new();
 
-    // Factorial
-    emitter.emit(Inst::LocalReserve(1));
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::LocalStore(0)); // total
-    let loop_start = emitter.emit(Inst::Dup);
-    emitter.emit(Inst::LocalLoad(0));
-    emitter.emit(Inst::Mul);
-    emitter.emit(Inst::LocalStore(0));
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::Sub);
-    emitter.emit(Inst::Dup);
-    emitter.emit(Inst::PushI(1));
-    emitter.emit(Inst::GreaterThan);
-    emitter.emit(Inst::BranchIf(loop_start));
-    emitter.emit(Inst::Drop);
-    emitter.emit(Inst::LocalLoad(0));
+    let n = e.local_new();
+    let total = e.local_new();
 
-    let fact_instructions = emitter.finish();
-    let mut vm = VM::new();
+    e.local_store(n);
+    e.push_int(1).local_store(total);
+    e.while_loop(
+        |e| {
+            e.local_load(n).push_int(1).greater_than();
+        },
+        |e| {
+            e.local_load(n)
+                .dup()
+                .local_load(total)
+                .mul()
+                .local_store(total)
+                .push_int(1)
+                .sub()
+                .local_store(n);
+        },
+    );
+    e.local_load(total);
+
+    let factorial = e.finish();
+    let mut functions = Functions::new();
+    functions.insert("factorial".into(), factorial);
+
+    let mut vm = VM::new(functions);
 
     vm.push(MetaValue::int(5));
-    vm.execute(fact_instructions);
+    vm.run("factorial");
 
-    assert_eq!(vm.pop().unwrap(), MetaValue::int(120));
+    assert_eq!(vm.pop(), Ok(MetaValue::int(120)));
+}
+
+#[test]
+fn test_closure() {
+    let add_n_closure = {
+        let mut e = Emitter::with_env(1);
+        e.local_load(0).add();
+        e.finish()
+    };
+    let add_n = {
+        let mut e = Emitter::new();
+        e.push_list()
+            .swap()
+            .list_push()
+            .push_function_ref("add_n_closure")
+            .swap()
+            .bind();
+        e.finish()
+    };
+    let main_fn = {
+        let mut e = Emitter::new();
+        e.push_int(1)
+            .push_int(2)
+            .push_function_ref("add_n")
+            .call()
+            .call();
+
+        e.finish()
+    };
+
+    let mut functions = Functions::new();
+    functions.insert("add_n_closure".into(), add_n_closure);
+    functions.insert("add_n".into(), add_n);
+    functions.insert("main".into(), main_fn);
+
+    let mut vm = VM::new(functions);
+
+    vm.run("main");
+
+    assert_eq!(vm.pop(), Ok(MetaValue::int(3)));
 }
 
 #[test]
@@ -105,5 +153,8 @@ fn test_functions() {
     vm.push(MetaValue::list(vec![5.into(), 6.into()]));
     vm.run("List.inc");
 
-    println!("Result: {:?}", vm.pop())
+    let res = vm.pop();
+    let expected = Ok(MetaValue::list(vec![6.into(), 7.into()]));
+
+    assert_eq!(res, expected);
 }

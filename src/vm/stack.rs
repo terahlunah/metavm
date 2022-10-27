@@ -2,6 +2,7 @@ use crate::vm::{
     value::{FunctionRef, List, MetaValue, Table, Value},
     RuntimeError,
 };
+use eq_float::F64;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
@@ -74,12 +75,21 @@ impl Stack {
     pub fn pop_float(&mut self) -> Result<f64, RuntimeError> {
         self.pop().and_then(|v| match v {
             MetaValue {
-                value: Value::Float(v),
+                value: Value::Float(F64(v)),
                 ..
             } => Ok(v),
             _ => Err(RuntimeError::TypeError(v.type_name())),
         })
     }
+    // pub fn pop_string(&mut self) -> Result<f64, RuntimeError> {
+    //     self.pop().and_then(|v| match v {
+    //         MetaValue {
+    //             value: Value::Float(v),
+    //             ..
+    //         } => Ok(v),
+    //         _ => Err(RuntimeError::TypeError(v.type_name())),
+    //     })
+    // }
     pub fn pop_list(&mut self) -> Result<List, RuntimeError> {
         self.pop().and_then(|v| match v {
             MetaValue {

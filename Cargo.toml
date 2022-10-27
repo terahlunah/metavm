@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0.32"
 eq-float = "0.1.0"
+tap = "1.0.1"
+derive_more = "0.99.17"
